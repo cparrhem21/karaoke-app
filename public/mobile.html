@@ -14,6 +14,9 @@
         input[type="text"] { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
         button.search-btn { padding: 12px 20px; background: #2196F3; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
         
+        /* Skip Button Style */
+        .skip-btn { margin-top: 15px; width: 100%; padding: 12px; background: #FF9800; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; }
+
         /* Results List Styles */
         .result-item { display: flex; gap: 15px; background: white; padding: 10px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); align-items: center; }
         .result-item img { width: 120px; border-radius: 6px; }
@@ -30,9 +33,12 @@
         <div class="search-container">
             <input type="text" id="search-input" placeholder="Search for a song...">
             <button class="search-btn" onclick="searchYouTube()">Search</button>
-            ⏭ Skip Current Song
         </div>
         
+        <!-- PROPERLY FORMATTED SKIP BUTTON -->
+        <button class="skip-btn" onclick="skipSong()">
+            ⏭ Skip Current Song
+        </button>
     </div>
 
     <!-- Search results will populate here -->
@@ -112,58 +118,57 @@
         }
 
         // Send the selected video to the server's queue
-function addToQueue(videoId, title) {
-    if (roomCode) {
-        socket.emit('add_to_queue', { 
-            roomCode: roomCode, 
-            videoId: videoId,
-            title: title
+        function addToQueue(videoId, title) {
+            if (roomCode) {
+                socket.emit('add_to_queue', { 
+                    roomCode: roomCode, 
+                    videoId: videoId,
+                    title: title
+                });
+                
+                // Clear the search bar to show it was successful
+                document.getElementById('search-input').value = '';
+                document.getElementById('results').innerHTML = '';
+                alert("Added to queue!");
+            } else {
+                alert("You are not connected to a room!");
+            }
+        }
+
+        // Listen for updates from the server and render the queue
+        socket.on('queue_updated', (queue) => {
+            let queueContainer = document.getElementById('queue-list');
+            
+            // If we haven't created the queue container in HTML yet, create it dynamically
+            if (!queueContainer) {
+                const div = document.createElement('div');
+                div.innerHTML = `<h3>Up Next:</h3><div id="queue-list"></div>`;
+                document.body.appendChild(div);
+                queueContainer = document.getElementById('queue-list');
+            }
+            
+            if (queue.length === 0) {
+                queueContainer.innerHTML = '<p>Queue is empty. Search for a song!</p>';
+                return;
+            }
+
+            queueContainer.innerHTML = '';
+            queue.forEach((song, index) => {
+                queueContainer.innerHTML += `
+                    <div style="background: white; padding: 10px; margin-bottom: 5px; border-radius: 6px;">
+                        <strong>#${index + 1}</strong>: ${song.title}
+                    </div>
+                `;
+            });
         });
-        
-        // Clear the search bar to show it was successful
-        document.getElementById('search-input').value = '';
-        document.getElementById('results').innerHTML = '';
-        alert("Added to queue!");
-    } else {
-        alert("You are not connected to a room!");
-    }
-}
 
-// Listen for updates from the server and render the queue
-socket.on('queue_updated', (queue) => {
-    // You'll need an element with id="queue-list" in your HTML to hold this
-    let queueContainer = document.getElementById('queue-list');
-    
-    // If we haven't created the queue container in HTML yet, create it dynamically
-    if (!queueContainer) {
-        const div = document.createElement('div');
-        div.innerHTML = `<h3>Up Next:</h3><div id="queue-list"></div>`;
-        document.body.appendChild(div);
-        queueContainer = document.getElementById('queue-list');
-    }
-    
-    if (queue.length === 0) {
-        queueContainer.innerHTML = '<p>Queue is empty. Search for a song!</p>';
-        return;
-    }
-
-    queueContainer.innerHTML = '';
-    queue.forEach((song, index) => {
-        queueContainer.innerHTML += `
-            <div style="background: white; padding: 10px; margin-bottom: 5px; border-radius: 6px;">
-                <strong>#${index + 1}</strong>: ${song.title}
-            </div>
-        `;
-    });
-});
-
-function skipSong() {
-    if (roomCode) {
-        socket.emit('skip_song', roomCode);
-    } else {
-        alert("You are not connected to a room!");
-    }
-}
+        function skipSong() {
+            if (roomCode) {
+                socket.emit('skip_song', roomCode);
+            } else {
+                alert("You are not connected to a room!");
+            }
+        }
     </script>
 </body>
 </html>
