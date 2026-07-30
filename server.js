@@ -5,8 +5,9 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+const path = require('path');
 
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // This object will store the state for every active TV session
 // Format: { "A7X2": { queue: [{videoId, title}], isPlaying: false } }
