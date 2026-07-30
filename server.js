@@ -9,6 +9,11 @@ const path = require('path');
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// If someone visits the main URL, redirect them to the display screen
+app.get('/', (req, res) => {
+    res.redirect('/display.html');
+});
+
 // This object will store the state for every active TV session
 // Format: { "A7X2": { queue: [{videoId, title}], isPlaying: false } }
 const rooms = {};
