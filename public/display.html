@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Karaoke TV Display</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            text-align: center; 
+            background: #111; 
+            color: white; 
+            margin: 0; 
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        /* The video player container */
+        #player-container {
+            width: 100vw;
+            height: 100vh;
+            display: none; /* Hidden until a video plays */
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #qrcode-container {
+            background: white; 
+            padding: 20px; 
+            border-radius: 10px; 
+            margin: 20px auto;
+            width: max-content;
+        }
+        .success { color: #4CAF50; font-size: 1.2rem; font-weight: bold; }
+    </style>
+</head>
+<body>
+    
+    <div id="setup-screen">
+        <h1>Karaoke Display</h1>
+        <h2 id="room-display">Connecting...</h2>
+        <div id="qrcode-container"></div>
+        <p id="status">Waiting for connection...</p>
+    </div>
+
+    <!-- The YouTube Player will be injected into this div -->
+    <div id="player-container">
+        <div id="player"></div>
+    </div>
+
+    <script>
+        const socket = io();
+        let roomCodeId = "";
+
+        // --- 1. SOCKET.IO SETUP (Same as before) ---
+        socket.emit('create_room');
+
+        socket.on('room_created', (roomCode) => {
+            roomCodeId = roomCode;
+            document.getElementById('room-display').innerText = `Room Code: ${roomCode}`;
+            
+            const joinUrl = `${window.location.origin}/mobile.html?room=${roomCode}`;
+            new QRCode(document.getElementById("qrcode-container"), {
+                text: joinUrl,
+                width: 250,
+                height: 250
+            });
+            document.getElementById('status').innerText = "Scan QR to join!";
+        });
+
+        socket.on('mobile_connected', (data) => {
+            document.getElementById('status').innerText = "✅ " + data.message;
+            document.getElementById('status').className = "success";
+        });
+
+        // --- 2. YOUTUBE API SETUP ---
+        // Asynchronously load the YouTube IFrame API script
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        let player;
+
+        // This function is automatically called by the YouTube API once it loads
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                playerVars: {
+                    'autoplay': 1,
+                    'controls': 0, // Hides the bottom play/pause bar
+                    'rel': 0,      // Prevents random related videos at the end
+                    'disablekb': 1 // Disables keyboard controls
+                },
+                events: {
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+
+        // Listen for video state changes (like when a video ends)
+        function onPlayerStateChange(event) {
+            // event.data === 0 means the video ended
+            if (event.data === YT.PlayerState.ENDED) {
+                // Hide player, show the setup screen again
+                document.getElementById('player-container').style.display = 'none';
+                document.getElementById('setup-screen').style.display = 'block';
+                
+                // Tell the server the song finished so it can play the next one
+                socket.emit('song_ended', roomCodeId);
+            }
+        }
+
+        // --- 3. LISTEN FOR PLAY COMMANDS FROM SERVER ---
+        socket.on('play_video', (videoId) => {
+            // Hide the QR code screen and show the player
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('player-container').style.display = 'block';
+            
+            // Tell the YouTube player to load and play the video
+            player.loadVideoById(videoId);
+        });
+
+        // --- 4. LISTEN FOR EMPTY QUEUE COMMAND ---
+socket.on('queue_empty', () => {
+    // Stop the YouTube video if one is playing
+    if (player && typeof player.stopVideo === 'function') {
+        player.stopVideo();
+    }
+    
+    // Hide the player and show the setup screen again
+    document.getElementById('player-container').style.display = 'none';
+    document.getElementById('setup-screen').style.display = 'block';
+});
+    </script>
+</body>
+</html>
